@@ -2,6 +2,7 @@ use rand::Rng;
 use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
+use regex::Regex;
 
 use unidecode::unidecode;
 
@@ -13,6 +14,26 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
+fn stats(words: & std::collections::HashSet<String>) {
+    let mut freq:[[u32;26];5] = [[0;26];5];
+    for word in words {
+        println!("{}", word);
+        for ci in word.char_indices() {
+            let indice: usize = ci.0 as usize;
+            let c:char = ci.1;
+            let n:usize = c as usize - 0x61;
+            freq[indice][n] += 1;
+        }
+    }
+    for (_i, row) in freq.iter().enumerate() {
+        for (_j, value) in row.iter().enumerate() {
+            print!(" {number: >width$}" , number=value, width=4);
+        }
+        print!("\n");
+    }
+    
+
+}
 fn print_guess(guess: &str, expected: &str) {
     print!("{}:", guess);
     if guess.len() == expected.len() {
@@ -38,19 +59,20 @@ fn main() {
     let word_size = 5;
 
     if let Ok(lines) = read_lines(filename) {
+        let re = Regex::new(r"^[a-z]{5}$").unwrap();
         for line in lines {
             if let Ok(current_line) = line {
                 let current_word = current_line.split('\t').next().unwrap_or("");
                 sanitize_word = unidecode(current_word);
-                if current_word.chars().count() == word_size {
+                if re.is_match(&sanitize_word) && sanitize_word.chars().count() == word_size {
                     words_set.insert(sanitize_word);
                 }
             }
         }
-        println!("Mots sans les accents = {}", words_set.len());
+        stats(&words_set);
 
         let secret_number = rand::thread_rng().gen_range(1..words_set.len());
-        let mut secret_word = String::from("xxxx");
+        let mut secret_word = String::from("");
         let mut wi: usize = 0;
         for w in words_set.clone() {
             if wi == secret_number {
