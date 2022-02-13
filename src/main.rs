@@ -3,7 +3,8 @@ use std::fs::File;
 use std::io::{self, BufRead};
 use std::path::Path;
 use regex::Regex;
-
+use std::collections::HashSet;
+use std::collections::HashMap;
 use unidecode::unidecode;
 
 fn read_lines<P>(filename: P) -> io::Result<io::Lines<io::BufReader<File>>>
@@ -14,10 +15,10 @@ where
     Ok(io::BufReader::new(file).lines())
 }
 
-fn stats(words: & std::collections::HashSet<String>) {
+fn stats(words: & HashSet<String>,
+    words_tried:& HashMap<String,Vec<i32>>) {
     let mut freq:[[u32;26];5] = [[0;26];5];
     for word in words {
-        println!("{}", word);
         for ci in word.char_indices() {
             let indice: usize = ci.0 as usize;
             let c:char = ci.1;
@@ -25,30 +26,58 @@ fn stats(words: & std::collections::HashSet<String>) {
             freq[indice][n] += 1;
         }
     }
-    for (_i, row) in freq.iter().enumerate() {
-        for (_j, value) in row.iter().enumerate() {
-            print!(" {number: >width$}" , number=value, width=4);
+    // for (_i, row) in freq.iter().enumerate() {
+    //     for (_j, value) in row.iter().enumerate() {
+    //         print!(" {number: >width$}" , number=value, width=4);
+    //     }
+    //     print!("\n");
+    // }
+    let mut e_word_max:f32 = 0.0;
+    let mut word_max = String::from("");
+    for w2 in words {
+        let mut e_word = 0.0;
+        for ci2 in w2.char_indices() {
+            let indice: usize = ci2.0 as usize;
+            let c:char = ci2.1;
+            let n:usize = c as usize - 0x61;
+
+            let mut px:f32 = freq[indice][n] as f32 / words.len() as f32;
+            for t in words_tried {jjj
+                if c == t.0.chars().nth(indice).unwrap_or_default() && t.1[indice] == 2 {
+                    px = 0.0;
+                }
+            }
+            e_word += px * (1.0 / px).log(2.0);
         }
-        print!("\n");
+        if e_word > e_word_max {
+            e_word_max = e_word;
+            word_max = w2.clone();
+        }
     }
+    println!("word max :{} {}", word_max, e_word_max);
     
 
 }
-fn print_guess(guess: &str, expected: &str) {
+fn print_guess(guess: &str, expected: &str) -> Vec<i32> {
+    let mut result : Vec<i32> = vec![0,0,0,0,0];
     print!("{}:", guess);
     if guess.len() == expected.len() {
         for gic in guess.char_indices() {
             let char_pos_in_exptected = expected.find(gic.1).unwrap_or(guess.len());
             if gic.0 == char_pos_in_exptected {
+                result[gic.0] = 0;
                 print!("🟩");
             } else if char_pos_in_exptected == expected.len() {
+                result[gic.0] = 2;
                 print!("🟥");
             } else {
+                result[gic.0] = 1;
                 print!("🟨");
             }
         }
     }
     println!("");
+    result
 }
 
 fn main() {
@@ -57,6 +86,7 @@ fn main() {
     let mut sanitize_word;
 
     let word_size = 5;
+    let mut words_tried: HashMap<String, Vec<i32>> = std::collections::HashMap::new();
 
     if let Ok(lines) = read_lines(filename) {
         let re = Regex::new(r"^[a-z]{5}$").unwrap();
@@ -69,8 +99,7 @@ fn main() {
                 }
             }
         }
-        stats(&words_set);
-
+        
         let secret_number = rand::thread_rng().gen_range(1..words_set.len());
         let mut secret_word = String::from("");
         let mut wi: usize = 0;
@@ -81,8 +110,9 @@ fn main() {
             wi += 1;
         }
         println!("Secret word to found = {}", secret_word);
-        let mut nb_try = 6;
+        let mut nb_try = 20;
         loop {
+            stats(&words_set, &words_tried);
             println!("Please input your guess. (try#{})", nb_try);
             let mut guess = String::new();
             io::stdin()
@@ -102,8 +132,11 @@ fn main() {
                 println!("You guessed: {}", secret_word);
                 break;
             }
+            let rep = print_guess(&guess, &secret_word);
+            words_tried.insert(guess.clone(), rep);
             println!("Wrong");
-            print_guess(&guess, &secret_word);
+
+
             nb_try -= 1;
             if nb_try <= 0 {
                 break;
